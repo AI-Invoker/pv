@@ -1,0 +1,15 @@
+/work/
+/dist/
+/vendor/mpv/
+*.pdb
+*.dll
+*.exe
+*.lib
+*.a
+*.zip
+*.7z
+.vs/
+.idea/
+/.zig-cache/
+/zig-out/
+/tests/fixtures/

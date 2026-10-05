@@ -1,0 +1,30 @@
+{
+  "mpv": {
+    "release": "2026-10-04-c152964208",
+    "revision": "c152964208",
+    "license": "LGPL-3.0-or-later (combined libmpv / FFmpeg build)",
+    "url": "https://github.com/zhongfly/mpv-winbuild/releases/download/2026-10-04-c152964208/mpv-dev-lgpl-x86_64-20261004-git-c152964208.7z",
+    "archive": "mpv-dev-lgpl-x86_64-20261004-git-c152964208.7z",
+    "sha256": "b656b1d3f18f3db619894c22b68023acabd856e9e026b2a8516f30f1a44ee0bc",
+    "dll_sha256": "ee7dde89da6ddecb2adf7fc7585d4d89124dfaa2e1b476393a04c06ab7b02ad6"
+  },
+  "zig": {
+    "version": "0.14.1",
+    "url": "https://ziglang.org/download/0.14.1/zig-x86_64-windows-0.14.1.zip",
+    "archive": "zig-x86_64-windows-0.14.1.zip",
+    "directory": "zig-x86_64-windows-0.14.1",
+    "sha256": "554f5378228923ffd558eac35e21af020c73789d87afeabf4bfd16f2e6feed2c"
+  },
+  "ufbx": {
+    "version": "0.23.1",
+    "revision": "26a482ae66871d7de36eb722aa060bce95bce274",
+    "source": "https://github.com/ufbx/ufbx/tree/26a482ae66871d7de36eb722aa060bce95bce274",
+    "c_sha256": "4a956c26a708e40d82ecb0aeaee54da709d5ba7c144c9642174970059bda7e1d",
+    "h_sha256": "f787be529af577efc04f3e3e735844a08556718dbb613d1211c2b313d72895dc"
+  },
+  "stb_image": {
+    "revision": "013ac3beddff3dbffafd5177e7972067cd2b5083",
+    "source": "https://github.com/nothings/stb/tree/013ac3beddff3dbffafd5177e7972067cd2b5083",
+    "sha256": "594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3"
+  }
+}

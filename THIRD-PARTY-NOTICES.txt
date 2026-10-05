@@ -1,0 +1,38 @@
+PV's own code is licensed under the MIT License (see LICENSE).
+Third-party components retain their own copyrights and license terms.
+
+Playback and additional image formats use libmpv and its linked libraries
+(FFmpeg, libplacebo, libass and others). The public source build defaults to
+zhongfly's explicitly designated LGPL libmpv build, not a GPL libmpv build.
+mpv uses the LGPL-2.1-or-later option; this build links to LGPLv3 FFmpeg,
+so the combined playback library is covered by LGPL-3.0-or-later.
+PV calls the replaceable libmpv-2.dll through the public dynamic-library API.
+PV does not modify libmpv or its linked libraries.
+Binary source: https://github.com/zhongfly/mpv-winbuild/releases/tag/2026-10-04-c152964208
+Archive: mpv-dev-lgpl-x86_64-20261004-git-c152964208.7z
+Archive SHA-256: b656b1d3f18f3db619894c22b68023acabd856e9e026b2a8516f30f1a44ee0bc
+libmpv-2.dll SHA-256: ee7dde89da6ddecb2adf7fc7585d4d89124dfaa2e1b476393a04c06ab7b02ad6
+mpv source revision: c152964208
+mpv source and copyright: https://github.com/mpv-player/mpv/tree/c152964208
+FFmpeg source and license: https://github.com/FFmpeg/FFmpeg
+libplacebo source and license: https://code.videolan.org/videolan/libplacebo
+libass source and license: https://github.com/libass/libass
+Build scripts and dependency references: https://github.com/zhongfly/mpv-winbuild
+LGPL build configuration: https://github.com/zhongfly/mpv-winbuild/blob/main/compile-lgpl-libmpv.patch
+LGPLv3 and its referenced GPLv3 license text are included in LICENSES.
+The source repository does not distribute the playback binary or its dependencies.
+When redistributing a compiled package, comply with the LGPL and the individual
+dependency licenses, including applicable source-availability requirements.
+MIT licensing of PV does not relicense these third-party components.
+
+FBX viewing uses ufbx 0.23.1 (MIT license option).
+Source: https://github.com/ufbx/ufbx/tree/26a482ae66871d7de36eb722aa060bce95bce274
+ufbx.c SHA-256: 4a956c26a708e40d82ecb0aeaee54da709d5ba7c144c9642174970059bda7e1d
+ufbx.h SHA-256: f787be529af577efc04f3e3e735844a08556718dbb613d1211c2b313d72895dc
+See LICENSE-ufbx.txt in the installed directory and vendor/ufbx/LICENSE in the source workspace.
+
+Texture decoding uses stb_image (MIT license option).
+Source: https://github.com/nothings/stb/tree/013ac3beddff3dbffafd5177e7972067cd2b5083
+stb_image.h SHA-256: 594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
+See LICENSE-stb.txt in the installed directory and vendor/stb/LICENSE in the source workspace.
+pv-fbx.dll is built from these sources and native/pv_fbx.c; it has no separately installed runtime.
