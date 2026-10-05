@@ -11,6 +11,8 @@ namespace PV
     internal sealed class ModelCanvas : Control
     {
         private ModelData model;
+        internal readonly ModelPlayback Playback=new ModelPlayback();
+        private readonly Timer animationTimer;
         private IntPtr dc,context,window;
         private uint[] textures;
         private bool uploaded,dragging,panning,wire,grid=true;
@@ -45,6 +47,9 @@ namespace PV
             BackColor=Color.FromArgb(19,21,26);TabStop=true;
             AccessibleName="FBX 模型视图";AccessibleDescription="左键拖动旋转，右键拖动平移，滚轮缩放，0 复位";
             SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.Opaque|ControlStyles.ResizeRedraw|ControlStyles.Selectable,true);
+            Playback.FrameReady+=()=>Invalidate();Playback.Failed+=message=>{if(Failed!=null)Failed(message);};
+            animationTimer=new Timer{Interval=33};
+            animationTimer.Tick+=(s,e)=>{Form form=FindForm();if(Visible&&(form==null||form.WindowState!=FormWindowState.Minimized))Playback.Tick();};
         }
         protected override CreateParams CreateParams
         {
@@ -53,12 +58,12 @@ namespace PV
         internal void SetModel(ModelData value)
         {
             ClearModel();model=value;
-            try { EnsureGraphics();UploadTextures();ResetView(); }
+            try { EnsureGraphics();UploadTextures();ResetView();Playback.Attach(model);if(Playback.Available)animationTimer.Start(); }
             catch { ClearModel();throw; }
         }
         internal void ClearModel()
         {
-            DestroyGraphics();if(model!=null){model.Dispose();model=null;}Invalidate();
+            animationTimer.Stop();Playback.Detach();DestroyGraphics();if(model!=null){model.Dispose();model=null;}Invalidate();
         }
         private void Changed(){Invalidate();if(ViewChanged!=null)ViewChanged();}
         internal void ResetView()
@@ -308,7 +313,7 @@ namespace PV
             if(dc!=IntPtr.Zero){GL.ReleaseDC(window,dc);dc=IntPtr.Zero;}textures=null;uploaded=false;
         }
         protected override void OnHandleDestroyed(EventArgs e){DestroyGraphics();base.OnHandleDestroyed(e);}
-        protected override void Dispose(bool disposing){if(disposing)ClearModel();base.Dispose(disposing);}
+        protected override void Dispose(bool disposing){if(disposing){ClearModel();animationTimer.Dispose();}base.Dispose(disposing);}
     }
 
     internal static class GL

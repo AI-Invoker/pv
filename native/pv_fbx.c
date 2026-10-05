@@ -31,18 +31,29 @@ typedef struct {
     uint32_t vertices, parts, materials, meshes, textures;
     float bottom;
 } pv_info;
+typedef struct { const char *name; double begin, end; } pv_animation_info;
+typedef struct { pv_animation_info info; const ufbx_anim *anim; } pv_animation;
+typedef struct { uint32_t node, first, count; } pv_mesh_map;
 typedef struct {
     pv_vertex *vertices;
     pv_part *parts;
     pv_material *materials;
     pv_texture *textures;
     pv_info info;
+    ufbx_scene *source;
+    pv_animation *animations;
+    uint32_t animation_count;
+    pv_vertex *alternate;
+    uint32_t *indices;
+    pv_mesh_map *meshes;
+    double center[3], radius;
 } pv_scene;
 typedef char pv_vertex_layout[sizeof(pv_vertex) == 48 ? 1 : -1];
 typedef char pv_part_layout[sizeof(pv_part) == 16 ? 1 : -1];
 typedef char pv_material_layout[sizeof(pv_material) == 24 ? 1 : -1];
 typedef char pv_texture_layout[sizeof(pv_texture) == 64 ? 1 : -1];
 typedef char pv_info_layout[sizeof(pv_info) == 24 ? 1 : -1];
+typedef char pv_animation_layout[sizeof(pv_animation_info) == 24 ? 1 : -1];
 
 static float pv_clamp(double x) { return !isfinite(x) ? 1.0f : (float)(x < 0.0 ? 0.0 : x > 1.0 ? 1.0 : x); }
 static int pv_cancelled(const volatile int *flag) { return flag && *flag != 0; }
@@ -75,6 +86,45 @@ static ufbx_texture *pv_base_texture(ufbx_material *mat) {
     if (tex && tex->type != UFBX_TEXTURE_FILE) tex = tex->file_textures.count ? tex->file_textures.data[0] : NULL;
     return tex;
 }
+static int pv_animation_range(const ufbx_anim *anim, double *begin, double *end) {
+    if (!anim) return 0;
+    double min_time = 1e300, max_time = -1e300;
+    int changing = 0;
+    for (size_t li = 0; li < anim->layers.count; li++) {
+        ufbx_anim_layer *layer = anim->layers.data[li];
+        for (size_t vi = 0; vi < layer->anim_values.count; vi++) {
+            ufbx_anim_value *value = layer->anim_values.data[vi];
+            for (int ci = 0; ci < 3; ci++) {
+                ufbx_anim_curve *curve = value->curves[ci];
+                if (!curve || !curve->keyframes.count) continue;
+                if (curve->max_value != curve->min_value) changing = 1;
+                for (size_t ki = 0; !changing && ki < curve->keyframes.count; ki++) {
+                    ufbx_keyframe *key = &curve->keyframes.data[ki];
+                    if (key->interpolation == UFBX_INTERPOLATION_CUBIC && (key->left.dy != 0 || key->right.dy != 0)) changing = 1;
+                }
+                double a = curve->keyframes.data[0].time, b = curve->keyframes.data[curve->keyframes.count - 1].time;
+                if (isfinite(a) && a < min_time) min_time = a;
+                if (isfinite(b) && b > max_time) max_time = b;
+            }
+        }
+    }
+    if (!changing || min_time > max_time) return 0;
+    *begin = anim->time_begin; *end = anim->time_end;
+    if (!isfinite(*begin) || !isfinite(*end) || *end <= *begin) { *begin = min_time; *end = max_time; }
+    return isfinite(*end - *begin) && *end - *begin > 1e-6;
+}
+static int pv_vertex_pose(const pv_scene *scene, pv_vertex *vertex, ufbx_node *node, size_t index, const ufbx_matrix *normals) {
+    ufbx_vec3 p = pv_position(node, index), n = ufbx_get_vertex_vec3(&node->mesh->skinned_normal, index);
+    if (node->mesh->skinned_is_local) n = ufbx_transform_direction(normals, n);
+    double length = sqrt(n.x * n.x + n.y * n.y + n.z * n.z);
+    if (length < 1e-12 || !isfinite(length)) { n.x = 0; n.y = 1; n.z = 0; length = 1; }
+    for (int j = 0; j < 3; j++) {
+        double value = (p.v[j] - scene->center[j]) / scene->radius;
+        if (!isfinite(value) || fabs(value) > 1e30) return 0;
+        vertex->p[j] = (float)value; vertex->n[j] = (float)(n.v[j] / length);
+    }
+    return 1;
+}
 
 PV_API void pv_fbx_free(pv_scene *scene) {
     if (!scene) return;
@@ -82,6 +132,9 @@ PV_API void pv_fbx_free(pv_scene *scene) {
         pv_texture *t = &scene->textures[i];
         free(t->relative); free(t->absolute); free(t->filename); free(t->content); stbi_image_free(t->pixels);
     }
+    for (uint32_t i = 0; i < scene->animation_count; i++) free((void*)scene->animations[i].info.name);
+    ufbx_free_scene(scene->source);
+    free(scene->animations); free(scene->alternate); free(scene->indices); free(scene->meshes);
     free(scene->vertices); free(scene->parts); free(scene->materials); free(scene->textures); free(scene);
 }
 
@@ -108,7 +161,6 @@ PV_API pv_scene *pv_fbx_load(const wchar_t *path, const volatile int *cancelled,
     opts.target_unit_meters = 1.0;
     opts.generate_missing_normals = true;
     opts.evaluate_skinning = true;
-    opts.ignore_animation = true;
     opts.clean_skin_weights = true;
     opts.use_blender_pbr_material = true;
     opts.node_depth_limit = 512;
@@ -150,12 +202,31 @@ PV_API pv_scene *pv_fbx_load(const wchar_t *path, const volatile int *cancelled,
     if (part_count > UINT32_MAX || src->materials.count >= UINT32_MAX) goto fail;
     dst = (pv_scene*)calloc(1, sizeof(pv_scene));
     if (!dst) goto fail;
+    size_t animation_capacity = src->anim_stacks.count ? src->anim_stacks.count : 1;
+    if (animation_capacity > UINT32_MAX) goto fail;
+    dst->animations = (pv_animation*)calloc(animation_capacity, sizeof(pv_animation));
+    if (!dst->animations) goto fail;
+    for (size_t ai = 0; ai < animation_capacity; ai++) {
+        ufbx_anim_stack *stack = src->anim_stacks.count ? src->anim_stacks.data[ai] : NULL;
+        const ufbx_anim *anim = stack ? stack->anim : src->anim;
+        double begin, end;
+        if (!pv_animation_range(anim, &begin, &end)) continue;
+        pv_animation *clip = &dst->animations[dst->animation_count++];
+        clip->info.name = pv_string(stack ? stack->name : (ufbx_string){"Animation", 9});
+        if (!clip->info.name) goto fail;
+        clip->info.begin = begin; clip->info.end = end; clip->anim = anim;
+    }
     dst->info.materials = (uint32_t)src->materials.count + 1;
     dst->info.meshes = (uint32_t)mesh_count;
     dst->vertices = (pv_vertex*)malloc(triangles * 3 * sizeof(pv_vertex));
     dst->parts = (pv_part*)calloc(part_count, sizeof(pv_part));
     dst->materials = (pv_material*)calloc(dst->info.materials, sizeof(pv_material));
     dst->textures = (pv_texture*)calloc(dst->info.materials, sizeof(pv_texture));
+    if (dst->animation_count) {
+        dst->indices = (uint32_t*)malloc(triangles * 3 * sizeof(uint32_t));
+        dst->meshes = (pv_mesh_map*)calloc(mesh_count, sizeof(pv_mesh_map));
+        if (!dst->indices || !dst->meshes) goto fail;
+    }
     material_textures = (ufbx_texture**)calloc(dst->info.materials, sizeof(ufbx_texture*));
     unique_textures = (ufbx_texture**)calloc(dst->info.materials, sizeof(ufbx_texture*));
     tri_indices = (uint32_t*)malloc(tri_capacity * sizeof(uint32_t));
@@ -194,11 +265,15 @@ PV_API pv_scene *pv_fbx_load(const wchar_t *path, const volatile int *cancelled,
     double radius = hypot(hypot(extent[0],extent[1]),extent[2]);
     if (!isfinite(radius)) { failure = "Model bounds are too large"; goto fail; }
     if (radius <= 0.0) radius = 1.0;
+    memcpy(dst->center, center, sizeof(center)); dst->radius = radius;
     dst->info.bottom = (float)((minv[1] - center[1]) / radius);
+    uint32_t mesh_index = 0;
     for (size_t ni = 0; ni < src->nodes.count; ni++) {
         ufbx_node *node = src->nodes.data[ni];
         ufbx_mesh *mesh = node->mesh;
         if (!mesh || !mesh->num_triangles || !pv_visible(node)) continue;
+        pv_mesh_map *mapping = dst->meshes ? &dst->meshes[mesh_index++] : NULL;
+        if (mapping) { mapping->node = node->typed_id; mapping->first = dst->info.vertices; }
         ufbx_matrix normals = ufbx_matrix_for_normals(&node->geometry_to_world);
         for (size_t pi = 0; pi < mesh->material_parts.count; pi++) {
             ufbx_mesh_part *part = &mesh->material_parts.data[pi];
@@ -222,10 +297,8 @@ PV_API pv_scene *pv_fbx_load(const wchar_t *path, const volatile int *cancelled,
                 if ((size_t)dst->info.vertices + num_tri * 3 > triangles * 3) { failure = "Invalid mesh triangulation"; goto fail; }
                 for (uint32_t vi = 0; vi < num_tri * 3; vi++) {
                     size_t ix = tri_indices[vi]; pv_vertex *v = &dst->vertices[dst->info.vertices++];
-                    ufbx_vec3 p = pv_position(node, ix), n = ufbx_get_vertex_vec3(&mesh->skinned_normal, ix);
-                    if (mesh->skinned_is_local) n = ufbx_transform_direction(&normals, n);
-                    double length = sqrt(n.x * n.x + n.y * n.y + n.z * n.z); if (length < 1e-12 || !isfinite(length)) { n.x = 0; n.y = 1; n.z = 0; length = 1; }
-                    for (int j = 0; j < 3; j++) { v->p[j] = (float)((p.v[j] - center[j]) / radius); v->n[j] = (float)(n.v[j] / length); }
+                    if (!pv_vertex_pose(dst, v, node, ix, &normals)) { failure = "Invalid vertex coordinates"; goto fail; }
+                    if (dst->indices) dst->indices[dst->info.vertices - 1] = (uint32_t)ix;
                     ufbx_vec3 uv = {0};
                     if (uvs->exists) { ufbx_vec2 base = ufbx_get_vertex_vec2(uvs, ix); uv.x = base.x; uv.y = base.y; }
                     if (tex && tex->has_uv_transform) uv = ufbx_transform_position(&tex->uv_to_texture, uv);
@@ -236,7 +309,11 @@ PV_API pv_scene *pv_fbx_load(const wchar_t *path, const volatile int *cancelled,
             }
             out_part->count = dst->info.vertices - out_part->first;
         }
+        if (mapping) mapping->count = dst->info.vertices - mapping->first;
     }
+    // Static files release ufbx immediately. Animated files retain one source
+    // scene and reuse two vertex buffers, without baking every animation frame.
+    if (dst->animation_count) { dst->source = src; src = NULL; }
     free(filename); free(material_textures); free(unique_textures); free(tri_indices); ufbx_free_scene(src);
     return dst;
 fail:
@@ -251,6 +328,52 @@ PV_API void pv_fbx_info(const pv_scene *scene, pv_info *info) { if (scene && inf
 PV_API const pv_vertex *pv_fbx_vertices(const pv_scene *scene) { return scene ? scene->vertices : NULL; }
 PV_API const pv_part *pv_fbx_parts(const pv_scene *scene) { return scene ? scene->parts : NULL; }
 PV_API const pv_material *pv_fbx_materials(const pv_scene *scene) { return scene ? scene->materials : NULL; }
+PV_API uint32_t pv_fbx_animation_count(const pv_scene *scene) { return scene ? scene->animation_count : 0; }
+PV_API int pv_fbx_animation_info(const pv_scene *scene, uint32_t index, pv_animation_info *info) {
+    if (!scene || !info || index >= scene->animation_count) return 0;
+    *info = scene->animations[index].info; return 1;
+}
+// Called by a single worker on the buffer that the UI is not drawing.
+PV_API const pv_vertex *pv_fbx_evaluate(pv_scene *scene, int32_t animation, double position, uint32_t buffer, char *error, uint32_t error_size) {
+    if (!scene || !scene->source || buffer > 1 || animation < -1 || (animation >= 0 && (uint32_t)animation >= scene->animation_count) || !isfinite(position)) {
+        pv_error(error, error_size, "Invalid animation request"); return NULL;
+    }
+    if (buffer && !scene->alternate) {
+        scene->alternate = (pv_vertex*)malloc((size_t)scene->info.vertices * sizeof(pv_vertex));
+        if (!scene->alternate) { pv_error(error, error_size, "Not enough memory for animation"); return NULL; }
+        memcpy(scene->alternate, scene->vertices, (size_t)scene->info.vertices * sizeof(pv_vertex));
+    }
+    pv_vertex *vertices = buffer ? scene->alternate : scene->vertices;
+    ufbx_scene *evaluated = NULL, *pose = scene->source;
+    if (animation >= 0) {
+        pv_animation *clip = &scene->animations[animation];
+        double time = clip->info.begin + fmax(0.0, fmin(clip->info.end - clip->info.begin, position));
+        ufbx_evaluate_opts opts = {0}; opts.evaluate_skinning = true;
+        opts.temp_allocator.memory_limit = (size_t)512 * 1024 * 1024;
+        opts.result_allocator.memory_limit = (size_t)1024 * 1024 * 1024;
+        ufbx_error eval_error = {0};
+        evaluated = ufbx_evaluate_scene(scene->source, clip->anim, time, &opts, &eval_error);
+        if (!evaluated) { pv_error(error, error_size, eval_error.description.data); return NULL; }
+        pose = evaluated;
+    }
+    int valid = 1;
+    for (uint32_t mi = 0; valid && mi < scene->info.meshes; mi++) {
+        pv_mesh_map *mapping = &scene->meshes[mi];
+        if (mapping->node >= pose->nodes.count) { valid = 0; break; }
+        ufbx_node *node = pose->nodes.data[mapping->node];
+        if (!node->mesh) { valid = 0; break; }
+        ufbx_matrix normals = ufbx_matrix_for_normals(&node->geometry_to_world);
+        int visible = pv_visible(node);
+        for (uint32_t vi = mapping->first; vi < mapping->first + mapping->count; vi++) {
+            uint32_t index = scene->indices[vi];
+            if (index >= node->mesh->num_indices || !pv_vertex_pose(scene, &vertices[vi], node, index, &normals)) { valid = 0; break; }
+            if (!visible) memset(vertices[vi].p, 0, sizeof(vertices[vi].p));
+        }
+    }
+    ufbx_free_scene(evaluated);
+    if (!valid) { pv_error(error, error_size, "Invalid animated mesh coordinates"); return NULL; }
+    return vertices;
+}
 PV_API int pv_fbx_texture_info(const pv_scene *scene, uint32_t index, pv_texture *texture) {
     if (!scene || index >= scene->info.textures || !texture) return 0;
     *texture = scene->textures[index]; return 1;

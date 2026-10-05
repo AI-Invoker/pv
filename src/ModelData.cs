@@ -31,6 +31,20 @@ namespace PV
             internal ulong ContentSize;
             internal uint Width, Height, WrapU, WrapV;
         }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct AnimationInfo { internal IntPtr Name; internal double Begin,End; }
+        internal sealed class AnimationClip
+        {
+            internal string Name;
+            internal double Begin,Duration;
+            public override string ToString(){return Name;}
+        }
+        internal sealed class AnimationFrame
+        {
+            internal IntPtr Vertices;
+            internal int Buffer;
+            internal string Error;
+        }
 
         [DllImport("pv-fbx.dll",CallingConvention=CallingConvention.Cdecl,EntryPoint="pv_fbx_load")]
         private static extern IntPtr NativeLoad([MarshalAs(UnmanagedType.LPWStr)] string path,IntPtr cancelled,[Out] byte[] error,uint errorSize);
@@ -48,6 +62,12 @@ namespace PV
         private static extern int NativeTexture(ModelHandle scene,uint index,out Texture texture);
         [DllImport("pv-fbx.dll",CallingConvention=CallingConvention.Cdecl,EntryPoint="pv_fbx_decode_texture")]
         private static extern int NativeDecodeTexture(ModelHandle scene,uint index,IntPtr bytes,uint size);
+        [DllImport("pv-fbx.dll",CallingConvention=CallingConvention.Cdecl,EntryPoint="pv_fbx_animation_count")]
+        private static extern uint NativeAnimationCount(ModelHandle scene);
+        [DllImport("pv-fbx.dll",CallingConvention=CallingConvention.Cdecl,EntryPoint="pv_fbx_animation_info")]
+        private static extern int NativeAnimationInfo(ModelHandle scene,uint index,out AnimationInfo info);
+        [DllImport("pv-fbx.dll",CallingConvention=CallingConvention.Cdecl,EntryPoint="pv_fbx_evaluate")]
+        private static extern IntPtr NativeEvaluate(ModelHandle scene,int animation,double position,uint buffer,[Out] byte[] error,uint errorSize);
 
         private static readonly SemaphoreSlim importGate=new SemaphoreSlim(1,1);
         private ModelHandle handle;
@@ -55,6 +75,7 @@ namespace PV
         internal Part[] Parts;
         internal Material[] Materials;
         internal Texture[] Textures;
+        internal AnimationClip[] Animations;
         internal IntPtr Vertices;
         internal int LoadedTextures, MissingTextures;
         internal uint Triangles { get { return Info.Vertices/3; } }
@@ -65,7 +86,29 @@ namespace PV
             Parts=ReadArray<Part>(NativeParts(handle),Info.Parts);
             Materials=ReadArray<Material>(NativeMaterials(handle),Info.Materials);
             Textures=new Texture[Info.Textures];
+            Animations=new AnimationClip[NativeAnimationCount(handle)];
+            for(uint i=0;i<Animations.Length;i++)
+            {
+                AnimationInfo clip;if(NativeAnimationInfo(handle,i,out clip)==0)throw new IOException("无法读取动画信息");
+                string name=Utf8(clip.Name);if(string.IsNullOrWhiteSpace(name))name="动画 "+(i+1);
+                Animations[i]=new AnimationClip{Name=name,Begin=clip.Begin,Duration=clip.End-clip.Begin};
+            }
         }
+        // Native evaluation writes only the inactive buffer. Publishing is done
+        // on the UI thread, after the worker has completed and is still current.
+        internal AnimationFrame Evaluate(int animation,double position,int buffer)
+        {
+            try
+            {
+                ModelHandle owner=handle;if(owner==null||owner.IsClosed)return new AnimationFrame{Error="模型已关闭"};
+                byte[] error=new byte[1024];IntPtr vertices=NativeEvaluate(owner,animation,position,(uint)buffer,error,(uint)error.Length);
+                if(vertices!=IntPtr.Zero)return new AnimationFrame{Vertices=vertices,Buffer=buffer};
+                int end=Array.IndexOf(error,(byte)0);if(end<0)end=error.Length;
+                return new AnimationFrame{Error=Encoding.UTF8.GetString(error,0,end)};
+            }
+            catch(Exception ex){return new AnimationFrame{Error=ex.Message};}
+        }
+        internal void Publish(AnimationFrame frame){Vertices=frame.Vertices;}
         private static T[] ReadArray<T>(IntPtr pointer,uint count) where T:struct
         {
             T[] result=new T[count];int stride=Marshal.SizeOf(typeof(T));

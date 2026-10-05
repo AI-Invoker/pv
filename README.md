@@ -2,16 +2,16 @@
 
 Windows 图片、视频、音乐与 FBX 查看器。使用原生 WinForms 界面，提供打开即看的操作方式，没有后台服务或开机自启。
 
-**当前版本：1.3.1 · Windows 10/11 x64 · MIT**
+**当前版本：1.4.0 · Windows 10/11 x64 · MIT**
 
-PV is a native Windows viewer for images, videos, music, and static FBX models, with playback speed controls and SVG buttons. The source is licensed under MIT.
+PV is a native Windows viewer for images, videos, music, and animated FBX models, with playback speed controls and SVG buttons. The source is licensed under MIT.
 
 ## 功能
 
 - **图片**：缩放、适应窗口、原始大小、旋转、GIF 动画；最大放大 800%。完整显示时居中固定，放大超出窗口后可拖动，到图片边缘即停止。
 - **视频**：播放、暂停、进度跳转、0.25–4 倍速、音量和静音。
 - **音乐**：歌名、歌手、专辑信息；播放控制与视频共用，同文件夹内自然排序，自动播放下一首和单曲循环。
-- **FBX**：默认姿态、基础材质与贴图、旋转和平移、线框、延伸地面网格、XYZ 坐标球。
+- **FBX**：骨骼、节点变换与变形动画；打开后自动循环播放，支持动画切换、播放/暂停、进度拖动和 0.25–4 倍速；也可选择默认姿态。保留基础材质与贴图、旋转和平移、线框、延伸地面网格、XYZ 坐标球。
 - **界面**：SVG 播放/暂停、扬声器/静音、适应窗口、放大镜和全屏按钮；音量连续拖动，文件切换按钮在画面左右两侧。
 - **文件打开**：双击关联文件、拖入窗口或 `Ctrl+O`；同一实例接收新文件。
 
@@ -28,7 +28,9 @@ PV is a native Windows viewer for images, videos, music, and static FBX models, 
 | 音乐 | MP3、WAV、FLAC、M4A/M4B、AAC、OGG/OGA、Opus、WMA、AIFF/AIF、APE、WavPack、MKA |
 | 模型 | 二进制和 ASCII FBX |
 
-FBX 当前显示静态默认姿态，不播放骨骼动画，不还原复杂着色器或完整 PBR 材质，也不编辑、导出模型。单个模型最多 400 万个三角形，单张贴图最大 8192 像素。
+FBX 支持骨骼蒙皮、节点关键帧、动画层合成与 blend shape 变形。底部动画列表显示文件中包含的动画片段；没有动画的文件直接显示默认姿态。动画在后台逐帧计算，复用两个顶点缓冲区；暂停后停止计算，最小化时停止刷新，恢复窗口后按经过的时间继续播放。实际帧率取决于模型复杂度和电脑性能。
+
+当前不还原复杂着色器、动态材质或完整 PBR 材质，不播放外部点缓存，也不编辑、导出模型。单个模型最多 400 万个三角形，单张贴图最大 8192 像素。
 
 ## 从源码构建
 
@@ -64,6 +66,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\check-audio.ps1
 
 检查包含 10 种音频格式、中文标签、暂停、跳转、倍速、音量、静音、循环与错误反馈，不打开窗口、不输出声音。它不替代界面、实际音频输出或显卡兼容性测试。
 
+FBX 动画检查无需 FFmpeg，首次运行从固定版本的 ufbx 仓库下载回归样本到被 Git 忽略的 `tests/fixtures`：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\check-fbx.ps1
+```
+
+检查二进制与 ASCII 文件、多个动画片段、非零起始时间、蒙皮、动画层、变形动画、暂停、跳转、倍速、循环、默认姿态和关闭时的后台任务，不打开窗口。
+
+加上 `-Gui` 可在有桌面和 OpenGL 的 Windows 环境中检查窗口：包括动画控件、全屏、快速切换图片/模型、缺少同步上下文时的加载，以及加载中关闭。验证窗口放在屏幕范围之外，设置保存到测试目录。
+
 ## 安装和卸载
 
 ```powershell
@@ -95,11 +107,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Destination "
 | FBX 旋转 / 平移 / 缩放 | 左键拖动；右键、中键或 Shift+左键拖动；滚轮 |
 | FBX 复位 / 正面 / 侧面 / 顶面 | `0` / `R`、`1`、`2`、`3` |
 | FBX 线框 / 地面网格 | `W`、`G` |
+| FBX 动画播放 / 暂停 | `空格` |
+| FBX 动画前后微调 | `Shift+←/→`，每次 0.1 秒 |
 
 ## 源码结构
 
 - `src`：WinForms 界面、图片交互、libmpv 播放与 OpenGL 模型显示。
-- `native/pv_fbx.c`：FBX 读取与贴图解码桥接模块。
+- `native/pv_fbx.c`：FBX 读取、动画求值与贴图解码桥接模块。
+- `src/ModelPlayback.cs`：动画时钟、后台帧计算、暂停、进度、倍速与循环控制。
 - `assets`：程序图标、清单、配置和 SVG 控件图标。
 - `vendor/ufbx`、`vendor/stb`：固定版本的第三方源码与许可证。
 - `dependencies.json`、`prepare-dependencies.ps1`：可校验的依赖准备流程。
