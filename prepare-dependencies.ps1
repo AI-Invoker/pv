@@ -57,7 +57,13 @@ if (!$SkipCompiler) {
         $pvArchive = Get-PvDownload $pvDependencies.zig.url $pvDependencies.zig.archive $pvDependencies.zig.sha256
         New-Item -ItemType Directory -Path $pvToolchain -Force | Out-Null
         Write-Host "解压 Zig $($pvDependencies.zig.version)…"
-        Expand-Archive -LiteralPath $pvArchive -DestinationPath $pvToolchain -Force
+        $pvZipTar = Join-Path $env:WINDIR 'System32\tar.exe'
+        $pvZipExtracted = $false
+        if (Test-Path -LiteralPath $pvZipTar) {
+            & $pvZipTar -xf $pvArchive -C $pvToolchain
+            $pvZipExtracted = ($LASTEXITCODE -eq 0)
+        }
+        if (!$pvZipExtracted) { Expand-Archive -LiteralPath $pvArchive -DestinationPath $pvToolchain -Force }
     }
     $pvZigVersion = & $pvZig version
     if ($LASTEXITCODE -ne 0 -or $pvZigVersion -ne $pvDependencies.zig.version) { throw 'Zig 编译器版本不符。' }
