@@ -29,14 +29,14 @@ namespace PV
             if(args.Length>0&&args[0]=="--register-machine"){Associations.RegisterMachine(Application.ExecutablePath);return;}
             if(args.Length>0&&args[0]=="--set-defaults"){Associations.SetFallbackDefaults(Application.ExecutablePath);return;}
             if(args.Length>0&&args[0]=="--associations"){Associations.WriteReport(args.Length>1?args[1]:Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"associations.json"));return;}
-            try{new SingleViewer().Run(args);}catch(Exception ex){MessageBox.Show(ex.Message,"PV 轻看",MessageBoxButtons.OK,MessageBoxIcon.Error);}
+            try{if(args.Length==0||args[0]!="--diagnostics")WindowActivation.GrantToExistingInstance();new SingleViewer().Run(args);}catch(Exception ex){MessageBox.Show(ex.Message,"PV 轻看",MessageBoxButtons.OK,MessageBoxIcon.Error);}
         }
     }
     internal sealed class SingleViewer:WindowsFormsApplicationBase
     {
         internal SingleViewer(){IsSingleInstance=true;EnableVisualStyles=true;ShutdownStyle=ShutdownMode.AfterMainFormCloses;}
         protected override void OnCreateMainForm(){MainForm=new Viewer(CommandLineArgs.ToArray());}
-        protected override void OnStartupNextInstance(StartupNextInstanceEventArgs e){base.OnStartupNextInstance(e);((Viewer)MainForm).Accept(e.CommandLine.ToArray());e.BringToForeground=true;}
+        protected override void OnStartupNextInstance(StartupNextInstanceEventArgs e){e.BringToForeground=false;base.OnStartupNextInstance(e);((Viewer)MainForm).Accept(e.CommandLine.ToArray());}
     }
     internal sealed class NaturalComparer:IComparer<string>
     {
@@ -320,8 +320,8 @@ namespace PV
         internal void Accept(string[] args)
         {
             if(args.Length>0&&args[0]=="--diagnostics"){if(args.Length>1)WriteDiagnostics(args[1]);return;}
-            if(WindowState==FormWindowState.Minimized)WindowState=FormWindowState.Normal;
-            if(args.Length>0)Open(args[0]);Activate();
+            WindowActivation.Show(this);
+            if(args.Length>0)Open(args[0]);
         }
         private static bool Supported(string file){return AllExtensions.Contains(Path.GetExtension(file).ToLowerInvariant());}
         private void OpenDialog(){using(OpenFileDialog d=new OpenFileDialog{Title="打开图片、视频、音乐或 FBX 模型",Filter="可打开文件|"+string.Join(";",AllExtensions.Select(x=>"*"+x))+"|图片|"+string.Join(";",ImageExtensions.Select(x=>"*"+x))+"|视频|"+string.Join(";",VideoExtensions.Select(x=>"*"+x))+"|音乐|"+string.Join(";",AudioExtensions.Select(x=>"*"+x))+"|FBX 模型|*.fbx|所有文件|*.*",CheckFileExists=true})if(d.ShowDialog(this)==DialogResult.OK)Open(d.FileName);}
@@ -506,7 +506,7 @@ namespace PV
         private void SaveSettings(){try{Directory.CreateDirectory(Path.GetDirectoryName(settings));File.WriteAllLines(settings,new[]{"speed="+rate.ToString(CultureInfo.InvariantCulture),"volume="+vol.ToString(CultureInfo.InvariantCulture)});}catch{}}
         private void WriteDiagnostics(string output)
         {
-            string json="{\n  \"version\": \"1.5.8\",\n  \"executable\": "+Associations.Json(Application.ExecutablePath)+",\n  \"path\": "+Associations.Json(path)+",\n  \"loading\": "+loading.ToString().ToLowerInvariant()+",\n  \"video\": "+video.ToString().ToLowerInvariant()+",\n  \"nativeImage\": "+nativeImage.ToString().ToLowerInvariant()+",\n  \"error\": "+Associations.Json(error)+",\n  \"width\": "+(canvas.Picture!=null?canvas.Picture.Width:(player!=null?player.Number("width"):0))+",\n  \"height\": "+(canvas.Picture!=null?canvas.Picture.Height:(player!=null?player.Number("height"):0))+",\n  \"speed\": "+(player!=null?player.Number("speed"):rate).ToString(CultureInfo.InvariantCulture)+",\n  \"position\": "+(player!=null?player.Number("time-pos"):0).ToString(CultureInfo.InvariantCulture)+",\n  \"duration\": "+(player!=null?player.Number("duration"):0).ToString(CultureInfo.InvariantCulture)+",\n  \"paused\": "+(player!=null&&player.Flag("pause")).ToString().ToLowerInvariant()+",\n  \"fullscreen\": "+full.ToString().ToLowerInvariant()+",\n  \"firstLoadMs\": "+firstLoadMs+",\n  \"workingSetMB\": "+(Process.GetCurrentProcess().WorkingSet64/1048576.0).ToString("0.0",CultureInfo.InvariantCulture)+"\n}";
+            string json="{\n  \"version\": \"1.5.9\",\n  \"executable\": "+Associations.Json(Application.ExecutablePath)+",\n  \"path\": "+Associations.Json(path)+",\n  \"loading\": "+loading.ToString().ToLowerInvariant()+",\n  \"video\": "+video.ToString().ToLowerInvariant()+",\n  \"nativeImage\": "+nativeImage.ToString().ToLowerInvariant()+",\n  \"error\": "+Associations.Json(error)+",\n  \"width\": "+(canvas.Picture!=null?canvas.Picture.Width:(player!=null?player.Number("width"):0))+",\n  \"height\": "+(canvas.Picture!=null?canvas.Picture.Height:(player!=null?player.Number("height"):0))+",\n  \"speed\": "+(player!=null?player.Number("speed"):rate).ToString(CultureInfo.InvariantCulture)+",\n  \"position\": "+(player!=null?player.Number("time-pos"):0).ToString(CultureInfo.InvariantCulture)+",\n  \"duration\": "+(player!=null?player.Number("duration"):0).ToString(CultureInfo.InvariantCulture)+",\n  \"paused\": "+(player!=null&&player.Flag("pause")).ToString().ToLowerInvariant()+",\n  \"fullscreen\": "+full.ToString().ToLowerInvariant()+",\n  \"firstLoadMs\": "+firstLoadMs+",\n  \"workingSetMB\": "+(Process.GetCurrentProcess().WorkingSet64/1048576.0).ToString("0.0",CultureInfo.InvariantCulture)+"\n}";
             ModelData data=modelSurface.Model;
             ModelPlayback playback=modelSurface.Playback;
             string modelJson=",\n  \"audio\": "+audio.ToString().ToLowerInvariant()+",\n  \"model\": "+model.ToString().ToLowerInvariant()+",\n  \"modelMeshes\": "+(data!=null?data.Info.Meshes:0)+",\n  \"modelTriangles\": "+(data!=null?data.Triangles:0)+",\n  \"modelTextures\": "+modelSurface.TextureCount+",\n  \"modelYaw\": "+modelSurface.Yaw.ToString(CultureInfo.InvariantCulture)+",\n  \"modelPitch\": "+modelSurface.Pitch.ToString(CultureInfo.InvariantCulture)+",\n  \"modelDistance\": "+modelSurface.Distance.ToString(CultureInfo.InvariantCulture)+",\n  \"imagePanAllowed\": "+(nativeImage?NativeCanPan():canvas.CanPan).ToString().ToLowerInvariant()+",\n  \"loadMs\": "+loadMs;
