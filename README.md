@@ -2,7 +2,7 @@
 
 Windows 图片、视频、音乐与 FBX 查看器。使用原生 WinForms 界面，提供打开即看的操作方式，没有后台服务或开机自启。
 
-**当前版本：1.4.0 · Windows 10/11 x64 · MIT**
+**当前版本：1.5.8 · Windows 10/11 x64 · MIT**
 
 PV is a native Windows viewer for images, videos, music, and animated FBX models, with playback speed controls and SVG buttons. The source is licensed under MIT.
 
@@ -10,7 +10,7 @@ PV is a native Windows viewer for images, videos, music, and animated FBX models
 
 - **图片**：缩放、适应窗口、原始大小、旋转、GIF 动画；最大放大 800%。完整显示时居中固定，放大超出窗口后可拖动，到图片边缘即停止。
 - **视频**：播放、暂停、进度跳转、0.25–4 倍速、音量和静音。
-- **音乐**：歌名、歌手、专辑信息；播放控制与视频共用，同文件夹内自然排序，自动播放下一首和单曲循环。
+- **音乐**：歌名、歌手、专辑信息；播放控制与视频共用，同文件夹内自然排序，手动切换曲目，播放结束停在当前歌曲，可选择单曲循环。
 - **FBX**：骨骼、节点变换与变形动画；打开后自动循环播放，支持动画切换、播放/暂停、进度拖动和 0.25–4 倍速；也可选择默认姿态。保留基础材质与贴图、旋转和平移、线框、延伸地面网格、XYZ 坐标球。
 - **界面**：SVG 播放/暂停、扬声器/静音、适应窗口、放大镜和全屏按钮；音量连续拖动，文件切换按钮在画面左右两侧。
 - **文件打开**：双击关联文件、拖入窗口或 `Ctrl+O`；同一实例接收新文件。
