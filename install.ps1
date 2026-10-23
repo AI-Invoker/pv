@@ -12,7 +12,7 @@ if ([IO.Path]::GetFileName($Destination) -ne 'PV') { throw '请将安装目录�
 $pvExe = Join-Path $Destination 'PV.exe'
 $pvRunning = Get-Process -Name PV -ErrorAction SilentlyContinue | Where-Object Path -EQ $pvExe
 if ($pvRunning) { throw '请先关闭 PV 轻看窗口，再执行安装更新。' }
-foreach ($pvRequired in @('PV.exe','PV.exe.config','libmpv-2.dll','pv-fbx.dll','LICENSE-ufbx.txt','LICENSE-stb.txt')) {
+foreach ($pvRequired in @('PV.exe','PV.exe.config','libmpv-2.dll','pv-fbx.dll','LICENSE-ufbx.txt','LICENSE-stb.txt','Svg.dll','ExCSS.dll','System.Memory.dll','System.Buffers.dll','System.Runtime.CompilerServices.Unsafe.dll','System.Numerics.Vectors.dll')) {
     if (!(Test-Path -LiteralPath (Join-Path $pvDist $pvRequired))) { throw "缺少构建文件：$pvRequired" }
 }
 New-Item -ItemType Directory -Path $Destination -Force | Out-Null
@@ -26,7 +26,7 @@ $pvDesktop = Join-Path ([Environment]::GetFolderPath('Desktop')) 'PV 轻看.lnk'
 foreach ($pvLink in @($pvMenu,$pvDesktop)) { $pvShortcut=$pvShell.CreateShortcut($pvLink); $pvShortcut.TargetPath=$pvExe; $pvShortcut.WorkingDirectory=$Destination; $pvShortcut.Description='图片、视频、音乐与 FBX 查看器 · 支持倍速播放'; $pvShortcut.IconLocation="$pvExe,0"; $pvShortcut.Save() }
 New-Item -Path $pvUninstall -Force | Out-Null
 New-ItemProperty -Path $pvUninstall -Name DisplayName -Value 'PV 轻看' -PropertyType String -Force | Out-Null
-New-ItemProperty -Path $pvUninstall -Name DisplayVersion -Value '1.5.9' -PropertyType String -Force | Out-Null
+New-ItemProperty -Path $pvUninstall -Name DisplayVersion -Value '1.5.11' -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $pvUninstall -Name DisplayIcon -Value "$pvExe,0" -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $pvUninstall -Name InstallLocation -Value $Destination -PropertyType String -Force | Out-Null
 New-ItemProperty -Path $pvUninstall -Name UninstallString -Value "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$Destination\uninstall.ps1`" -Destination `"$Destination`"" -PropertyType String -Force | Out-Null

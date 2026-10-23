@@ -36,3 +36,15 @@ Source: https://github.com/nothings/stb/tree/013ac3beddff3dbffafd5177e7972067cd2
 stb_image.h SHA-256: 594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
 See LICENSE-stb.txt in the installed directory and vendor/stb/LICENSE in the source workspace.
 pv-fbx.dll is built from these sources and native/pv_fbx.c; it has no separately installed runtime.
+
+SVG rendering uses SVG.NET 3.4.8 (Microsoft Public License, MS-PL).
+Source: https://github.com/svg-net/SVG/tree/9d564f47c82780df4b703ee0bf2436c6a2276f5c
+Copyright 2009 Microsoft, 2011 vvvv Group, 2021 SVG.NET Contributors.
+CSS parsing uses ExCSS 4.2.3 (MIT): https://github.com/TylerBrinks/ExCSS
+Runtime dependencies: System.Memory 4.5.5, System.Buffers 4.5.1,
+System.Runtime.CompilerServices.Unsafe 4.5.3, System.Numerics.Vectors 4.5.0
+(MIT, .NET Foundation and Contributors): https://github.com/dotnet/runtime
+These unmodified assemblies are distributed beside PV.exe. Package URLs and
+archive/assembly SHA-256 values are pinned in dependencies.json.
+See LICENSES/SVG-MS-PL.txt, LICENSES/ExCSS-MIT.txt, LICENSES/DotNet-MIT.txt,
+and LICENSES/DotNet-THIRD-PARTY-NOTICES.txt.

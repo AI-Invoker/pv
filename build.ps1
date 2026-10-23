@@ -5,7 +5,7 @@ $pvRoot = $PSScriptRoot
 $pvCompiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $pvVB = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\Microsoft.VisualBasic.dll'
 $pvDist = Join-Path $pvRoot 'dist'
-foreach ($pvDependency in @('vendor\mpv\libmpv-2.dll','vendor\ufbx\ufbx.c','vendor\ufbx\ufbx.h','vendor\stb\stb_image.h')) {
+foreach ($pvDependency in @('vendor\mpv\libmpv-2.dll','vendor\ufbx\ufbx.c','vendor\ufbx\ufbx.h','vendor\stb\stb_image.h','vendor\svg\Svg.dll','vendor\svg\ExCSS.dll','vendor\svg\System.Memory.dll','vendor\svg\System.Buffers.dll','vendor\svg\System.Runtime.CompilerServices.Unsafe.dll','vendor\svg\System.Numerics.Vectors.dll')) {
     if (!(Test-Path -LiteralPath (Join-Path $pvRoot $pvDependency))) { throw "依赖缺失：$pvDependency。请先运行 prepare-dependencies.ps1。" }
 }
 New-Item -ItemType Directory -Path $pvDist -Force | Out-Null
@@ -14,12 +14,13 @@ $pvNativeInputs = @('native\pv_fbx.c','vendor\ufbx\ufbx.c','vendor\ufbx\ufbx.h',
 if (!(Test-Path -LiteralPath $pvNative) -or @($pvNativeInputs | Where-Object LastWriteTimeUtc -GT (Get-Item -LiteralPath $pvNative -ErrorAction SilentlyContinue).LastWriteTimeUtc).Count -gt 0) { & "$pvRoot\build-native.ps1" -Compiler $Compiler }
 $pvSource = @(Get-ChildItem -LiteralPath (Join-Path $pvRoot 'src') -Filter '*.cs' | ForEach-Object FullName)
 $pvIcons = @(Get-ChildItem -LiteralPath (Join-Path $pvRoot 'assets\ui') -Filter '*.svg' | ForEach-Object { "/resource:$($_.FullName),PV.Icons.$($_.Name)" })
-& $pvCompiler /nologo /target:winexe /platform:x64 /optimize+ /utf8output "/out:$pvDist\PV.exe" "/win32icon:$pvRoot\assets\PV.ico" "/win32manifest:$pvRoot\assets\PV.manifest" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Xml.dll "/r:$pvVB" $pvIcons $pvSource
+& $pvCompiler /nologo /target:winexe /platform:x64 /optimize+ /utf8output "/out:$pvDist\PV.exe" "/win32icon:$pvRoot\assets\PV.ico" "/win32manifest:$pvRoot\assets\PV.manifest" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Xml.dll "/r:$pvRoot\vendor\svg\Svg.dll" "/r:$pvVB" $pvIcons $pvSource
 if ($LASTEXITCODE -ne 0) { throw 'PV compilation failed' }
 Copy-Item -LiteralPath "$pvRoot\assets\PV.exe.config" -Destination $pvDist -Force
 Copy-Item -LiteralPath "$pvRoot\vendor\mpv\libmpv-2.dll" -Destination $pvDist -Force
 Copy-Item -LiteralPath "$pvRoot\README.txt","$pvRoot\THIRD-PARTY-NOTICES.txt","$pvRoot\LICENSE" -Destination $pvDist -Force
 New-Item -ItemType Directory -Path (Join-Path $pvDist 'LICENSES') -Force | Out-Null
 Copy-Item -Path "$pvRoot\LICENSES\*.txt" -Destination (Join-Path $pvDist 'LICENSES') -Force
+Copy-Item -Path "$pvRoot\vendor\svg\*.dll" -Destination $pvDist -Force
 if ($Install) { & "$pvRoot\install.ps1" }
 Get-ChildItem -LiteralPath $pvDist | Select-Object Name,Length

@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+﻿# SPDX-License-Identifier: MIT
 param([string]$Executable)
 $ErrorActionPreference='Stop'
 $pvActivationRoot=Join-Path $PSScriptRoot '..\work\foreground-activation'
@@ -13,7 +13,10 @@ if(!$Executable){
     $pvActivationSources=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot '..\src') -Filter '*.cs' | ForEach-Object FullName)
     $pvActivationIcons=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot '..\assets\ui') -Filter '*.svg' | ForEach-Object {"/resource:$($_.FullName),PV.Icons.$($_.Name)"})
     $pvActivationVB=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\Microsoft.VisualBasic.dll'
-    & $pvActivationCompiler /nologo /utf8output /target:winexe /platform:x64 /optimize+ "/out:$Executable" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Xml.dll "/r:$pvActivationVB" $pvActivationIcons $pvActivationSources
+    $pvActivationSvg=Join-Path $PSScriptRoot '..\dist\Svg.dll'
+    $pvSvgManifest=Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\dependencies.json') -Raw | ConvertFrom-Json
+    foreach($pvPackage in $pvSvgManifest.svg_packages){Copy-Item -LiteralPath (Join-Path (Join-Path $PSScriptRoot '..\dist') ([IO.Path]::GetFileName($pvPackage.dll))) -Destination $pvActivationRoot -Force}
+    & $pvActivationCompiler /nologo /utf8output /target:winexe /platform:x64 /optimize+ "/out:$Executable" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Xml.dll "/r:$pvActivationVB" "/r:$pvActivationSvg" $pvActivationIcons $pvActivationSources
     if($LASTEXITCODE -ne 0){throw 'Activation fixture compilation failed'}
 }
 $pvActivationOriginalPath=$env:PATH

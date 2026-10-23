@@ -23,8 +23,11 @@ try{
         $pvGuiCheckExe=Join-Path $PSScriptRoot 'ViewerLifecycleChecks.exe'
         $pvGuiSources=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot '..\src') -Filter '*.cs' | ForEach-Object FullName)
         $pvGuiIcons=@(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot '..\assets\ui') -Filter '*.svg' | ForEach-Object {"/resource:$($_.FullName),PV.Icons.$($_.Name)"})
+        $pvCheckSvg=Join-Path $PSScriptRoot '..\dist\Svg.dll'
+        $pvSvgManifest=Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\dependencies.json') -Raw | ConvertFrom-Json
+        foreach($pvPackage in $pvSvgManifest.svg_packages){Copy-Item -LiteralPath (Join-Path (Join-Path $PSScriptRoot '..\dist') ([IO.Path]::GetFileName($pvPackage.dll))) -Destination $PSScriptRoot -Force}
         $pvVisualBasic=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\Microsoft.VisualBasic.dll'
-        & $pvCheckCompiler /nologo /utf8output /target:exe /platform:x64 /main:PV.ViewerLifecycleChecks "/out:$pvGuiCheckExe" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Xml.dll "/r:$pvVisualBasic" $pvGuiIcons $pvGuiSources (Join-Path $PSScriptRoot 'ViewerLifecycleChecks.cs')
+        & $pvCheckCompiler /nologo /utf8output /target:exe /platform:x64 /main:PV.ViewerLifecycleChecks "/out:$pvGuiCheckExe" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Xml.dll "/r:$pvCheckSvg" "/r:$pvVisualBasic" $pvGuiIcons $pvGuiSources (Join-Path $PSScriptRoot 'ViewerLifecycleChecks.cs')
         if($LASTEXITCODE -ne 0){throw 'Viewer lifecycle check compilation failed'}
         & $pvGuiCheckExe $pvFixtureDirectory
         if($LASTEXITCODE -ne 0){throw 'Viewer lifecycle checks failed'}

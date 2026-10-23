@@ -45,7 +45,7 @@ namespace PV
     }
     internal sealed class Viewer:Form
     {
-        internal static readonly string[] ImageExtensions={".jpg",".jpeg",".jpe",".jfif",".png",".bmp",".gif",".tif",".tiff",".ico",".webp",".avif",".heic",".heif"};
+        internal static readonly string[] ImageExtensions={".jpg",".jpeg",".jpe",".jfif",".png",".bmp",".gif",".tif",".tiff",".ico",".webp",".avif",".heic",".heif",".svg"};
         internal static readonly string[] VideoExtensions={".mp4",".mkv",".mov",".avi",".webm",".wmv",".m4v",".mpg",".mpeg",".ts",".mts",".m2ts",".flv",".3gp",".ogv",".vob"};
         internal static readonly string[] AudioExtensions={".mp3",".wav",".flac",".m4a",".m4b",".aac",".ogg",".oga",".opus",".wma",".aif",".aiff",".ape",".wv",".mka"};
         internal static readonly string[] ModelExtensions={".fbx"};
@@ -345,13 +345,13 @@ namespace PV
             if(audio){audioSurface.SetTrack(Path.GetFileNameWithoutExtension(path),"","");audioSurface.SetStatus("正在打开…");}
             if(model){await LoadModel(file,ticket);return;}
             if(video||audio){LoadNative(false);return;}
-            Image result=null;bool failed=false;
+            Image result=null;string failure=null;
             try {
                 result=await Task.Run(()=>Decode(file)).ConfigureAwait(false);
                 await OnUi(()=>{if(ticket!=generation)return;canvas.SetPicture(result);result=null;Loaded();UpdateInfo();});
-            }catch(Exception){failed=true;}
+            }catch(Exception ex){failure=ex.Message;}
             finally{if(result!=null){Stream unused=result.Tag as Stream;result.Dispose();if(unused!=null)unused.Dispose();}}
-            if(failed)await OnUi(()=>{if(ticket!=generation)return;nativeImage=true;LoadNative(true);});
+            if(failure!=null)await OnUi(()=>{if(ticket!=generation)return;if(ext==".svg"){ShowError("打开 SVG 失败："+failure);return;}nativeImage=true;LoadNative(true);});
         }
         private async Task LoadModel(string file,int ticket)
         {
@@ -372,6 +372,7 @@ namespace PV
         }
         private static Image Decode(string file)
         {
+            if(string.Equals(Path.GetExtension(file),".svg",StringComparison.OrdinalIgnoreCase))return SvgImage.Load(file);
             // Keep the compressed stream alive with the image, without locking the original file.
             byte[] data;using(FileStream f=new FileStream(file,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete)){using(MemoryStream bytes=new MemoryStream()){f.CopyTo(bytes);data=bytes.ToArray();}}
             MemoryStream stream=new MemoryStream(data,false);Image im=null;
@@ -465,7 +466,7 @@ namespace PV
             string count=(index>=0?(index+1)+" / "+siblings.Length+"   ·   ":"");string size="";try{long n=new FileInfo(path).Length;size=n>=1048576?(n/1048576.0).ToString("0.#")+" MB":(n/1024.0).ToString("0.#")+" KB";}catch{}
             string meta="";if(audio)meta="音乐   ·   "+Path.GetExtension(path).Substring(1).ToUpperInvariant()+"   ·   "+rate.ToString("0.##")+"×";
             else if(model&&modelSurface.Model!=null){ModelData data=modelSurface.Model;int loaded=modelSurface.TextureCount,missing=(int)data.Info.Textures-loaded;meta="FBX "+(modelSurface.Playback.Selection>=0?"动画 · "+modelSurface.Playback.Name:"默认姿态")+"   ·   "+data.Info.Meshes+" 个网格   ·   "+data.Triangles.ToString("N0")+" 个三角形"+(loaded>0?"   ·   "+loaded+" 张贴图":"")+(missing>0?"   ·   "+missing+" 张贴图未载入":"");}
-            else if(canvas.Picture!=null)meta=canvas.Picture.Width+" × "+canvas.Picture.Height+"   ·   "+(canvas.ScaleFactor*100).ToString("0")+"%"+(canvas.CanPan?"   ·   可拖动":"   ·   完整显示");
+            else if(canvas.Picture!=null)meta=canvas.PictureSize.Width+" × "+canvas.PictureSize.Height+"   ·   "+(canvas.ScaleFactor*100).ToString("0")+"%"+(canvas.CanPan?"   ·   可拖动":"   ·   完整显示");
             else if(player!=null&&player.IsLoaded)meta=player.Get("width")+" × "+player.Get("height")+(video?"   ·   "+rate.ToString("0.##")+"×":"");
             info.Text=count+meta+(meta!=""?"   ·   ":"")+size+(loading?"   ·   正在打开…":"");
         }
@@ -506,7 +507,7 @@ namespace PV
         private void SaveSettings(){try{Directory.CreateDirectory(Path.GetDirectoryName(settings));File.WriteAllLines(settings,new[]{"speed="+rate.ToString(CultureInfo.InvariantCulture),"volume="+vol.ToString(CultureInfo.InvariantCulture)});}catch{}}
         private void WriteDiagnostics(string output)
         {
-            string json="{\n  \"version\": \"1.5.9\",\n  \"executable\": "+Associations.Json(Application.ExecutablePath)+",\n  \"path\": "+Associations.Json(path)+",\n  \"loading\": "+loading.ToString().ToLowerInvariant()+",\n  \"video\": "+video.ToString().ToLowerInvariant()+",\n  \"nativeImage\": "+nativeImage.ToString().ToLowerInvariant()+",\n  \"error\": "+Associations.Json(error)+",\n  \"width\": "+(canvas.Picture!=null?canvas.Picture.Width:(player!=null?player.Number("width"):0))+",\n  \"height\": "+(canvas.Picture!=null?canvas.Picture.Height:(player!=null?player.Number("height"):0))+",\n  \"speed\": "+(player!=null?player.Number("speed"):rate).ToString(CultureInfo.InvariantCulture)+",\n  \"position\": "+(player!=null?player.Number("time-pos"):0).ToString(CultureInfo.InvariantCulture)+",\n  \"duration\": "+(player!=null?player.Number("duration"):0).ToString(CultureInfo.InvariantCulture)+",\n  \"paused\": "+(player!=null&&player.Flag("pause")).ToString().ToLowerInvariant()+",\n  \"fullscreen\": "+full.ToString().ToLowerInvariant()+",\n  \"firstLoadMs\": "+firstLoadMs+",\n  \"workingSetMB\": "+(Process.GetCurrentProcess().WorkingSet64/1048576.0).ToString("0.0",CultureInfo.InvariantCulture)+"\n}";
+            string json="{\n  \"version\": \"1.5.11\",\n  \"executable\": "+Associations.Json(Application.ExecutablePath)+",\n  \"path\": "+Associations.Json(path)+",\n  \"loading\": "+loading.ToString().ToLowerInvariant()+",\n  \"video\": "+video.ToString().ToLowerInvariant()+",\n  \"nativeImage\": "+nativeImage.ToString().ToLowerInvariant()+",\n  \"error\": "+Associations.Json(error)+",\n  \"width\": "+(canvas.Picture!=null?canvas.PictureSize.Width:(player!=null?player.Number("width"):0)).ToString(CultureInfo.InvariantCulture)+",\n  \"height\": "+(canvas.Picture!=null?canvas.PictureSize.Height:(player!=null?player.Number("height"):0)).ToString(CultureInfo.InvariantCulture)+",\n  \"speed\": "+(player!=null?player.Number("speed"):rate).ToString(CultureInfo.InvariantCulture)+",\n  \"position\": "+(player!=null?player.Number("time-pos"):0).ToString(CultureInfo.InvariantCulture)+",\n  \"duration\": "+(player!=null?player.Number("duration"):0).ToString(CultureInfo.InvariantCulture)+",\n  \"paused\": "+(player!=null&&player.Flag("pause")).ToString().ToLowerInvariant()+",\n  \"fullscreen\": "+full.ToString().ToLowerInvariant()+",\n  \"firstLoadMs\": "+firstLoadMs+",\n  \"workingSetMB\": "+(Process.GetCurrentProcess().WorkingSet64/1048576.0).ToString("0.0",CultureInfo.InvariantCulture)+"\n}";
             ModelData data=modelSurface.Model;
             ModelPlayback playback=modelSurface.Playback;
             string modelJson=",\n  \"audio\": "+audio.ToString().ToLowerInvariant()+",\n  \"model\": "+model.ToString().ToLowerInvariant()+",\n  \"modelMeshes\": "+(data!=null?data.Info.Meshes:0)+",\n  \"modelTriangles\": "+(data!=null?data.Triangles:0)+",\n  \"modelTextures\": "+modelSurface.TextureCount+",\n  \"modelYaw\": "+modelSurface.Yaw.ToString(CultureInfo.InvariantCulture)+",\n  \"modelPitch\": "+modelSurface.Pitch.ToString(CultureInfo.InvariantCulture)+",\n  \"modelDistance\": "+modelSurface.Distance.ToString(CultureInfo.InvariantCulture)+",\n  \"imagePanAllowed\": "+(nativeImage?NativeCanPan():canvas.CanPan).ToString().ToLowerInvariant()+",\n  \"loadMs\": "+loadMs;

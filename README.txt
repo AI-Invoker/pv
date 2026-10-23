@@ -1,4 +1,4 @@
-PV 轻看 1.5.9
+PV 轻看 1.5.11
 ===========
 轻便快捷的 Windows 图片、视频、音乐与 FBX 查看器。原生界面，无浏览器、后台服务或自动启动项。播放内核仅在播放视频、音乐及查看额外图片格式时加载；FBX 读取模块仅在打开模型时加载。
 
@@ -29,7 +29,7 @@ PV 轻看 1.5.9
   所有调整只用于查看，不修改原文件。原文件不会保持锁定。
 
 格式
-  图片：JPG/JPEG/JFIF、PNG、BMP、GIF（动画）、TIFF、ICO、WebP、AVIF、HEIC/HEIF。
+  图片：SVG、JPG/JPEG/JFIF、PNG、BMP、GIF（动画）、TIFF、ICO、WebP、AVIF、HEIC/HEIF。
   视频：MP4、MKV、MOV、AVI、WebM、WMV、M4V、MPEG、TS/MTS/M2TS、FLV、3GP、OGV、VOB。
   音乐：MP3、WAV、FLAC、M4A/M4B、AAC、OGG/OGA、Opus、WMA、AIFF/AIF、APE、WavPack（WV）、MKA。
   模型：二进制与 ASCII FBX；显示默认姿态，保留节点变换、多个网格、基础材质颜色、顶点颜色及基础色贴图。
@@ -63,3 +63,6 @@ PV 轻看 1.5.9
   --register：注册打开方式；--associations <json>：读取实际关联。
   --set-defaults：设置普通文件关联；Windows 已保存的用户默认选择优先，需在系统设置中更改。
   --diagnostics <json>：读取当前窗口的解码尺寸、倍速、进度和内存。
+
+SVG：支持静态矢量图片、透明背景、缩放和旋转。放大时按矢量绘制。
+使用 SVG.NET 3.4.8；不执行脚本或动画，不加载外部资源；文件上限 16 MB，宽高上限 32768 像素。

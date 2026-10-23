@@ -13,3 +13,4 @@
 /.zig-cache/
 /zig-out/
 /tests/fixtures/
+/vendor/svg/

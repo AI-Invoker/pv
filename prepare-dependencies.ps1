@@ -50,6 +50,19 @@ if (!(Test-PvHash $pvMpvLibrary $pvDependencies.mpv.dll_sha256)) {
     if (!(Test-PvHash $pvMpvLibrary $pvDependencies.mpv.dll_sha256)) { throw 'libmpv-2.dll 校验失败。' }
 }
 
+$pvSvgDirectory = Join-Path $pvRoot 'vendor\svg'
+New-Item -ItemType Directory -Path $pvSvgDirectory -Force | Out-Null
+foreach ($pvPackage in $pvDependencies.svg_packages) {
+    $pvSvgDll = Join-Path $pvSvgDirectory ([IO.Path]::GetFileName($pvPackage.dll))
+    if (Test-PvHash $pvSvgDll $pvPackage.dll_sha256) { continue }
+    $pvArchive = Get-PvDownload $pvPackage.url $pvPackage.archive $pvPackage.sha256
+    $pvExtract = Join-Path $pvDownloads ($pvPackage.id + '.' + $pvPackage.version)
+    Expand-Archive -LiteralPath $pvArchive -DestinationPath $pvExtract -Force
+    $pvExtractedDll = Join-Path $pvExtract $pvPackage.dll
+    if (!(Test-PvHash $pvExtractedDll $pvPackage.dll_sha256)) { throw "SVG 依赖校验失败：$($pvPackage.id)" }
+    Copy-Item -LiteralPath $pvExtractedDll -Destination $pvSvgDll -Force
+}
+
 if (!$SkipCompiler) {
     $pvToolchain = Join-Path $pvRoot 'work\toolchain'
     $pvZig = Join-Path (Join-Path $pvToolchain $pvDependencies.zig.directory) 'zig.exe'

@@ -2,20 +2,21 @@
 
 Windows 图片、视频、音乐与 FBX 查看器。使用原生 WinForms 界面，提供打开即看的操作方式，没有后台服务或开机自启。
 
-**当前版本：1.5.9 · Windows 10/11 x64 · MIT**
+**当前版本：1.5.11 · Windows 10/11 x64 · MIT**
 
 PV is a native Windows viewer for images, videos, music, and animated FBX models, with playback speed controls and SVG buttons. The source is licensed under MIT.
 
 ## 功能
 
 - **图片**：缩放、适应窗口、原始大小、旋转、GIF 动画；最大放大 800%。完整显示时居中固定，放大超出窗口后可拖动，到图片边缘即停止。
+- **SVG**：静态矢量图片，支持路径、文字、渐变、裁剪和内嵌位图；放大和旋转时按比例绘制，保留透明背景。
 - **视频**：播放、暂停、进度跳转、0.25–4 倍速、音量和静音。
 - **音乐**：歌名、歌手、专辑信息；播放控制与视频共用，同文件夹内自然排序，手动切换曲目，播放结束停在当前歌曲，可选择单曲循环。
 - **FBX**：骨骼、节点变换与变形动画；打开后自动循环播放，支持动画切换、播放/暂停、进度拖动和 0.25–4 倍速；也可选择默认姿态。保留基础材质与贴图、旋转和平移、线框、延伸地面网格、XYZ 坐标球。
 - **界面**：SVG 播放/暂停、扬声器/静音、适应窗口、放大镜和全屏按钮；音量连续拖动，文件切换按钮在画面左右两侧。
 - **文件打开**：双击关联文件、拖入窗口或 `Ctrl+O`；同一实例接收新文件，再次打开时恢复窗口并显示在前面。
 
-普通 JPG、PNG 等图片使用系统图像解码，额外图片格式、视频和音乐按需使用 libmpv；FBX 模块仅在打开模型时加载。
+SVG 使用 SVG.NET 矢量绘制；普通 JPG、PNG 等图片使用系统图像解码，额外图片格式、视频和音乐按需使用 libmpv；FBX 模块仅在打开模型时加载。
 
 播放内核占安装目录的绝大部分空间；主程序和 FBX 模块体积较小。启动时间和运行内存尚未做专项性能测试。
 
@@ -23,7 +24,7 @@ PV is a native Windows viewer for images, videos, music, and animated FBX models
 
 | 类型 | 格式 |
 | --- | --- |
-| 图片 | JPG/JPEG/JFIF、PNG、BMP、GIF、TIFF、ICO、WebP、AVIF、HEIC/HEIF |
+| 图片 | SVG、JPG/JPEG/JFIF、PNG、BMP、GIF、TIFF、ICO、WebP、AVIF、HEIC/HEIF |
 | 视频 | MP4、MKV、MOV、AVI、WebM、WMV、M4V、MPEG、TS/MTS/M2TS、FLV、3GP、OGV、VOB |
 | 音乐 | MP3、WAV、FLAC、M4A/M4B、AAC、OGG/OGA、Opus、WMA、AIFF/AIF、APE、WavPack、MKA |
 | 模型 | 二进制和 ASCII FBX |
@@ -43,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\prepare-dependencies.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-`prepare-dependencies.ps1` 下载固定版本的 libmpv 和 Zig 0.14.1，校验 SHA-256 后解压到仓库本地目录，不安装系统软件。首次构建依赖联网；缓存完整后可离线重新构建。
+`prepare-dependencies.ps1` 下载固定版本的 libmpv、SVG.NET 及其依赖和 Zig 0.14.1，校验 SHA-256 后解压到仓库本地目录，不安装系统软件。首次构建依赖联网；缓存完整后可离线重新构建。
 
 Windows 自带的 `tar.exe` 用于解压 mpv 的 7z 文件；如果系统版本不支持，可安装 [7-Zip](https://www.7-zip.org/) 后重试。依赖版本、下载地址和校验值见 [dependencies.json](dependencies.json)。ufbx 和 stb_image 的源码与许可证已包含在 `vendor` 中。
 
@@ -55,6 +56,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Compiler "C:\to
 ```
 
 构建产物在 `dist`，可直接运行 `dist\PV.exe`。需要保留同目录的 DLL 和许可文件，目前没有独立的单文件安装程序。
+
+### SVG 检查
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\check-svg.ps1
+```
+
+通过离屏像素检查验证 SVG 路径、渐变、文字、裁剪、透明度、缩放、旋转、文件释放和错误反馈，不打开窗口。SVG 按静态图片显示；不执行脚本、不播放 SVG 动画，也不加载外部图片、字体、样式表或文档。单个 SVG 文件上限 16 MB，画布宽高上限 32768 像素。
 
 ### 播放检查
 

@@ -26,5 +26,61 @@
     "revision": "013ac3beddff3dbffafd5177e7972067cd2b5083",
     "source": "https://github.com/nothings/stb/tree/013ac3beddff3dbffafd5177e7972067cd2b5083",
     "sha256": "594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3"
-  }
+  },
+  "svg_packages": [
+    {
+      "id": "Svg",
+      "version": "3.4.8",
+      "url": "https://api.nuget.org/v3-flatcontainer/svg/3.4.8/svg.3.4.8.nupkg",
+      "archive": "svg.3.4.8.zip",
+      "sha256": "6eb79306106d3353e3c946191960267d673a319887da36ec2ba7b49c2de913af",
+      "dll": "lib/net472/Svg.dll",
+      "dll_sha256": "59c0e607adc9dd23ac979b665b149b12bc7b82f01b8631769f3af8d85c3c3988"
+    },
+    {
+      "id": "ExCSS",
+      "version": "4.2.3",
+      "url": "https://api.nuget.org/v3-flatcontainer/excss/4.2.3/excss.4.2.3.nupkg",
+      "archive": "excss.4.2.3.zip",
+      "sha256": "33f1fa3f9a7baaa745cff7e0008d8c301590ee778dfc6222798492c718ec33d2",
+      "dll": "lib/net48/ExCSS.dll",
+      "dll_sha256": "f86616ea8327107f918fe4eb08040f6d50ea4d765f6f9ec521643ea2aad8c480"
+    },
+    {
+      "id": "System.Memory",
+      "version": "4.5.5",
+      "url": "https://api.nuget.org/v3-flatcontainer/system.memory/4.5.5/system.memory.4.5.5.nupkg",
+      "archive": "system.memory.4.5.5.zip",
+      "sha256": "10f43da352a29fb2b3188e4edd4dcf5100194c8b526e4f61fe2e2b5623775a22",
+      "dll": "lib/net461/System.Memory.dll",
+      "dll_sha256": "bf3fb84664f4097f1a8a9bc71a51dcf8cf1a905d4080a4d290da1730866e856f"
+    },
+    {
+      "id": "System.Buffers",
+      "version": "4.5.1",
+      "url": "https://api.nuget.org/v3-flatcontainer/system.buffers/4.5.1/system.buffers.4.5.1.nupkg",
+      "archive": "system.buffers.4.5.1.zip",
+      "sha256": "c30b3dd2c7e2f4cee4b823d692fd42118309b42ab1f5007f923d329a5b0d6b12",
+      "dll": "lib/net461/System.Buffers.dll",
+      "dll_sha256": "accccfbe45d9f08ffeed9916e37b33e98c65be012cfff6e7fa7b67210ce1fefb"
+    },
+    {
+      "id": "System.Runtime.CompilerServices.Unsafe",
+      "version": "4.5.3",
+      "url": "https://api.nuget.org/v3-flatcontainer/system.runtime.compilerservices.unsafe/4.5.3/system.runtime.compilerservices.unsafe.4.5.3.nupkg",
+      "archive": "system.runtime.compilerservices.unsafe.4.5.3.zip",
+      "sha256": "96764c52a44ee1161151e48ef07489f72047a851cb55b99e9f01d6908536d1a9",
+      "dll": "lib/net461/System.Runtime.CompilerServices.Unsafe.dll",
+      "dll_sha256": "66409f670315afe8610f17a4d3a1ee52d72b6a46c544cec97544e8385f90ad74"
+    },
+    {
+      "id": "System.Numerics.Vectors",
+      "version": "4.5.0",
+      "url": "https://api.nuget.org/v3-flatcontainer/system.numerics.vectors/4.5.0/system.numerics.vectors.4.5.0.nupkg",
+      "archive": "system.numerics.vectors.4.5.0.zip",
+      "sha256": "a9d49320581fda1b4f4be6212c68c01a22cdf228026099c20a8eabefcf90f9cf",
+      "dll": "lib/net46/System.Numerics.Vectors.dll",
+      "dll_sha256": "1d3ef8698281e7cf7371d1554afef5872b39f96c26da772210a33da041ba1183"
+    }
+  ]
 }

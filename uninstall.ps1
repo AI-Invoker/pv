@@ -12,7 +12,7 @@ if ($pvResolved -ne $pvExpected -or [IO.Path]::GetFileName($pvResolved) -ne 'PV'
 if ((Test-Path -LiteralPath $pvResolved) -and ((Get-Item -LiteralPath $pvResolved).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '安装目录为链接，已停止自动删除。' }
 $pvRunning=Get-Process -Name PV -ErrorAction SilentlyContinue | Where-Object Path -EQ (Join-Path $pvResolved 'PV.exe')
 if ($pvRunning) { throw '请先关闭 PV 轻看后再卸载。' }
-$pvImage=@('.jpg','.jpeg','.jpe','.jfif','.png','.bmp','.gif','.tif','.tiff','.ico','.webp','.avif','.heic','.heif')
+$pvImage=@('.jpg','.jpeg','.jpe','.jfif','.png','.bmp','.gif','.tif','.tiff','.ico','.webp','.avif','.heic','.heif','.svg')
 $pvVideo=@('.mp4','.mkv','.mov','.avi','.webm','.wmv','.m4v','.mpg','.mpeg','.ts','.mts','.m2ts','.flv','.3gp','.ogv','.vob')
 $pvAudio=@('.mp3','.wav','.flac','.m4a','.m4b','.aac','.ogg','.oga','.opus','.wma','.aif','.aiff','.ape','.wv','.mka')
 foreach ($pvExt in ($pvImage+$pvVideo+$pvAudio+@('.fbx'))) {
