@@ -64,6 +64,8 @@ namespace PV
         private static extern int NativeDecodeTexture(ModelHandle scene,uint index,IntPtr bytes,uint size);
         [DllImport("pv-fbx.dll",CallingConvention=CallingConvention.Cdecl,EntryPoint="pv_fbx_animation_count")]
         private static extern uint NativeAnimationCount(ModelHandle scene);
+        [DllImport("pv-fbx.dll",CallingConvention=CallingConvention.Cdecl,EntryPoint="pv_fbx_bone_count")]
+        private static extern uint NativeBoneCount(ModelHandle scene);
         [DllImport("pv-fbx.dll",CallingConvention=CallingConvention.Cdecl,EntryPoint="pv_fbx_animation_info")]
         private static extern int NativeAnimationInfo(ModelHandle scene,uint index,out AnimationInfo info);
         [DllImport("pv-fbx.dll",CallingConvention=CallingConvention.Cdecl,EntryPoint="pv_fbx_evaluate")]
@@ -78,11 +80,13 @@ namespace PV
         internal AnimationClip[] Animations;
         internal IntPtr Vertices;
         internal int LoadedTextures, MissingTextures;
-        internal uint Triangles { get { return Info.Vertices/3; } }
+        internal uint Bones;
+        internal bool IsSkeleton { get { return Bones>0; } }
+        internal uint Triangles { get { return IsSkeleton?0:Info.Vertices/3; } }
 
         private ModelData(ModelHandle owner)
         {
-            handle=owner;NativeInfo(handle,out Info);Vertices=NativeVertices(handle);
+            handle=owner;NativeInfo(handle,out Info);Vertices=NativeVertices(handle);Bones=NativeBoneCount(handle);
             Parts=ReadArray<Part>(NativeParts(handle),Info.Parts);
             Materials=ReadArray<Material>(NativeMaterials(handle),Info.Materials);
             Textures=new Texture[Info.Textures];

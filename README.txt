@@ -1,4 +1,4 @@
-PV 轻看 1.5.11
+PV 轻看 1.5.12
 ===========
 轻便快捷的 Windows 图片、视频、音乐与 FBX 查看器。原生界面，无浏览器、后台服务或自动启动项。播放内核仅在播放视频、音乐及查看额外图片格式时加载；FBX 读取模块仅在打开模型时加载。
 
@@ -36,6 +36,9 @@ PV 轻看 1.5.11
        读取嵌入贴图，以及 FBX 相对路径、同目录、同名 .fbm 文件夹和 textures 子目录中的贴图。
        常见贴图格式包括 PNG、JPG、BMP、TGA、PSD、GIF 首帧等。缺失或无法解码的贴图会在底部计数，模型仍可查看。
        支持骨骼蒙皮、节点关键帧、动画层和 blend shape 变形；没有动画的模型显示默认姿态。
+       不含网格的纯骨骼 FBX 显示骨架并播放动作，底部标明“骨架预览 · 不含人物网格”和骨骼数量。
+       骨架预览自动跟随主体居中并保持固定缩放；远离主体的全局控制节点不生成过长辅助连线。
+       文件本身没有人物表面时，只显示骨架。单个骨架最多 10000 个骨骼。
        动画在后台逐帧计算并复用顶点缓冲区，暂停后停止计算，最小化时停止刷新。
        当前不还原复杂着色器、动态材质、法线贴图或完整 PBR 效果，不播放外部点缓存，也不编辑或导出模型。
        单个模型最多 400 万个三角形；单张贴图最多 8192 像素边长且不超过 1600 万像素，总贴图解码内存最多 256 MB。
@@ -50,6 +53,7 @@ PV 轻看 1.5.11
   程序：F:\Program Files\PV\PV.exe
   运行依赖：Windows 自带 .NET Framework 4.8、OpenGL；libmpv-2.dll 与约 0.6 MB 的 pv-fbx.dll。
   FBX 源码：native\pv_fbx.c；读取库 ufbx 0.23.1 与 stb_image 的源码和许可证在 vendor 中。
+  纯骨架无界面检查：powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\check-skeleton.ps1。
   界面 SVG 图标源码：assets\ui；构建时嵌入程序，按显示比例绘制。
   首次重编译 FBX 模块需要 Zig 0.14.1 Windows x64 编译器。当前已放入 work\toolchain，无需安装系统开发环境。
   编译器下载：https://ziglang.org/download/0.14.1/zig-x86_64-windows-0.14.1.zip

@@ -2,7 +2,7 @@
 
 Windows 图片、视频、音乐与 FBX 查看器。使用原生 WinForms 界面，提供打开即看的操作方式，没有后台服务或开机自启。
 
-**当前版本：1.5.11 · Windows 10/11 x64 · MIT**
+**当前版本：1.5.12 · Windows 10/11 x64 · MIT**
 
 PV is a native Windows viewer for images, videos, music, and animated FBX models, with playback speed controls and SVG buttons. The source is licensed under MIT.
 
@@ -30,6 +30,8 @@ SVG 使用 SVG.NET 矢量绘制；普通 JPG、PNG 等图片使用系统图像�
 | 模型 | 二进制和 ASCII FBX |
 
 FBX 支持骨骼蒙皮、节点关键帧、动画层合成与 blend shape 变形。底部动画列表显示文件中包含的动画片段；没有动画的文件直接显示默认姿态。动画在后台逐帧计算，复用两个顶点缓冲区；暂停后停止计算，最小化时停止刷新，恢复窗口后按经过的时间继续播放。实际帧率取决于模型复杂度和电脑性能。
+
+不含网格的纯骨骼 FBX 也可打开：显示骨架并播放内置动作，底部标明“骨架预览 · 不含人物网格”和骨骼数量。预览跟随骨架居中，保留固定缩放，方便查看带世界坐标位移的动作；远离主体的全局控制节点不会生成横穿视野的过长辅助连线。单个骨架最多 10000 个骨骼。文件本身没有人物表面时，只显示骨架。
 
 当前不还原复杂着色器、动态材质或完整 PBR 材质，不播放外部点缓存，也不编辑、导出模型。单个模型最多 400 万个三角形，单张贴图最大 8192 像素。
 
@@ -83,7 +85,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\check-fbx.ps1
 
 检查二进制与 ASCII 文件、多个动画片段、非零起始时间、蒙皮、动画层、变形动画、暂停、跳转、倍速、循环、默认姿态和关闭时的后台任务，不打开窗口。
 
-加上 `-Gui` 可在有桌面和 OpenGL 的 Windows 环境中检查窗口：包括动画控件、全屏、快速切换图片/模型、缺少同步上下文时的加载，以及加载中关闭。验证窗口放在屏幕范围之外，设置保存到测试目录。
+纯骨架检查在本地生成样本，验证静态骨架、单个及重合关节、跨普通节点的层级、动作播放、世界坐标偏移下的取景、空场景与取消加载：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tests\check-skeleton.ps1
+```
+
+该检查不打开窗口。可用 `-ModelFile` 额外检查一个包含单段动作的纯骨架 FBX，验证主体取景与动作变化；实际窗口和显卡显示效果需另行确认。
+
+`check-fbx.ps1` 加上 `-Gui` 可在有桌面和 OpenGL 的 Windows 环境中检查窗口：包括动画控件、全屏、快速切换图片/模型、缺少同步上下文时的加载，以及加载中关闭。验证窗口放在屏幕范围之外，设置保存到测试目录。
 
 ## 安装和卸载
 

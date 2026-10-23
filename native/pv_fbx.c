@@ -16,6 +16,8 @@
 
 #define PV_API __declspec(dllexport)
 #define PV_MAX_TRIANGLES 4000000u
+#define PV_MAX_PREVIEW_BONES 10000u
+#define PV_BONE_VERTICES 24u
 
 typedef struct { float p[3], n[3], uv[2], color[4]; } pv_vertex;
 typedef struct { uint32_t first, count, material, reserved; } pv_part;
@@ -34,6 +36,7 @@ typedef struct {
 typedef struct { const char *name; double begin, end; } pv_animation_info;
 typedef struct { pv_animation_info info; const ufbx_anim *anim; } pv_animation;
 typedef struct { uint32_t node, first, count; } pv_mesh_map;
+typedef struct { uint32_t node, parent, coincident; } pv_bone_map;
 typedef struct {
     pv_vertex *vertices;
     pv_part *parts;
@@ -46,6 +49,8 @@ typedef struct {
     pv_vertex *alternate;
     uint32_t *indices;
     pv_mesh_map *meshes;
+    pv_bone_map *bones;
+    uint32_t bone_count, bone_anchor;
     double center[3], radius;
 } pv_scene;
 typedef char pv_vertex_layout[sizeof(pv_vertex) == 48 ? 1 : -1];
@@ -126,6 +131,72 @@ static int pv_vertex_pose(const pv_scene *scene, pv_vertex *vertex, ufbx_node *n
     return 1;
 }
 
+static ufbx_vec3 pv_joint_position(const ufbx_node *node) {
+    return (ufbx_vec3){node->node_to_world.m03, node->node_to_world.m13, node->node_to_world.m23};
+}
+static int pv_skeleton_pose(const pv_scene *scene, pv_vertex *vertices, const ufbx_scene *pose) {
+    static const uint8_t faces[8][3] = {{0,3,2},{0,4,3},{0,5,4},{0,2,5},{1,2,3},{1,3,4},{1,4,5},{1,5,2}};
+    if (scene->bone_anchor >= pose->nodes.count) return 0;
+    // Follow one central joint so clips with world-space root motion stay in view.
+    // Use the rest-pose scale throughout the clip to avoid zooming on every frame.
+    ufbx_vec3 focus = pv_joint_position(pose->nodes.data[scene->bone_anchor]);
+    // The node mapping is built once at import. Each frame visits only these bones,
+    // reusing the same buffers as mesh animation; no frame baking or node search.
+    for (uint32_t bi = 0; bi < scene->bone_count; bi++) {
+        const pv_bone_map *map = &scene->bones[bi];
+        if (map->node >= pose->nodes.count || (map->parent != UFBX_NO_INDEX && map->parent >= pose->nodes.count)) return 0;
+        ufbx_vec3 end = pv_joint_position(pose->nodes.data[map->node]);
+        ufbx_vec3 start = map->parent != UFBX_NO_INDEX ? pv_joint_position(pose->nodes.data[map->parent]) : end;
+        double p[6][3], axis[3], u[3], v[3], center[3];
+        for (int j = 0; j < 3; j++) {
+            p[0][j] = (start.v[j] - focus.v[j]) / scene->radius;
+            p[1][j] = (end.v[j] - focus.v[j]) / scene->radius;
+            if (!isfinite(p[0][j]) || !isfinite(p[1][j]) || fabs(p[0][j]) > 1e30 || fabs(p[1][j]) > 1e30) return 0;
+            axis[j] = p[1][j] - p[0][j];
+        }
+        double length = hypot(hypot(axis[0], axis[1]), axis[2]);
+        // Global reference/trajectory controls may coincide in the default pose
+        // but separate by many body lengths during a clip. Draw their joint
+        // marker instead of an artificial bone across the entire world offset.
+        if (map->coincident && length > 2.0) {
+            memcpy(p[0], p[1], sizeof(p[0])); length = 0;
+        }
+        double width = fmax(0.002, fmin(0.012, length * 0.12));
+        if (length < 1e-8) {
+            // A root or coincident joint still needs a visible marker.
+            width = 0.005; axis[0] = 0; axis[1] = 1; axis[2] = 0;
+            for (int j = 0; j < 3; j++) center[j] = p[1][j];
+            p[0][1] -= width; p[1][1] += width;
+        } else {
+            for (int j = 0; j < 3; j++) { center[j] = p[0][j] + axis[j] * 0.2; axis[j] /= length; }
+        }
+        if (fabs(axis[1]) < 0.9) { u[0] = -axis[2]; u[1] = 0; u[2] = axis[0]; }
+        else { u[0] = 0; u[1] = axis[2]; u[2] = -axis[1]; }
+        double ul = hypot(hypot(u[0], u[1]), u[2]);
+        for (int j = 0; j < 3; j++) u[j] /= ul;
+        v[0] = axis[1]*u[2] - axis[2]*u[1]; v[1] = axis[2]*u[0] - axis[0]*u[2]; v[2] = axis[0]*u[1] - axis[1]*u[0];
+        for (int j = 0; j < 3; j++) {
+            p[2][j] = center[j] + u[j]*width; p[3][j] = center[j] + v[j]*width;
+            p[4][j] = center[j] - u[j]*width; p[5][j] = center[j] - v[j]*width;
+        }
+        for (uint32_t fi = 0; fi < 8; fi++) {
+            const double *a = p[faces[fi][0]], *b = p[faces[fi][1]], *c = p[faces[fi][2]];
+            double ab[3], ac[3], n[3];
+            for (int j = 0; j < 3; j++) { ab[j] = b[j]-a[j]; ac[j] = c[j]-a[j]; }
+            n[0] = ab[1]*ac[2]-ab[2]*ac[1]; n[1] = ab[2]*ac[0]-ab[0]*ac[2]; n[2] = ab[0]*ac[1]-ab[1]*ac[0];
+            double nl = hypot(hypot(n[0], n[1]), n[2]);
+            if (!isfinite(nl) || nl < 1e-20) { n[0] = 0; n[1] = 1; n[2] = 0; nl = 1; }
+            for (uint32_t vi = 0; vi < 3; vi++) {
+                pv_vertex *out = &vertices[bi*PV_BONE_VERTICES + fi*3 + vi];
+                for (int j = 0; j < 3; j++) { out->p[j] = (float)p[faces[fi][vi]][j]; out->n[j] = (float)(n[j]/nl); }
+                out->uv[0] = out->uv[1] = 0;
+                out->color[0] = 0.42f; out->color[1] = 0.74f; out->color[2] = 1.0f; out->color[3] = 1.0f;
+            }
+        }
+    }
+    return 1;
+}
+
 PV_API void pv_fbx_free(pv_scene *scene) {
     if (!scene) return;
     for (uint32_t i = 0; i < scene->info.textures; i++) {
@@ -134,7 +205,7 @@ PV_API void pv_fbx_free(pv_scene *scene) {
     }
     for (uint32_t i = 0; i < scene->animation_count; i++) free((void*)scene->animations[i].info.name);
     ufbx_free_scene(scene->source);
-    free(scene->animations); free(scene->alternate); free(scene->indices); free(scene->meshes);
+    free(scene->animations); free(scene->alternate); free(scene->indices); free(scene->meshes); free(scene->bones);
     free(scene->vertices); free(scene->parts); free(scene->materials); free(scene->textures); free(scene);
 }
 
@@ -198,7 +269,22 @@ PV_API pv_scene *pv_fbx_load(const wchar_t *path, const volatile int *cancelled,
         }
         if (pv_cancelled(cancelled)) { failure = "Cancelled"; goto fail; }
     }
-    if (!triangles) { failure = "This FBX has no visible polygon mesh"; goto fail; }
+    size_t bone_count = 0;
+    if (!triangles && !src->meshes.count) {
+        for (size_t ni = 0; ni < src->nodes.count; ni++) {
+            ufbx_node *node = src->nodes.data[ni];
+            if (!node->bone) continue;
+            if (++bone_count > PV_MAX_PREVIEW_BONES) { failure = "Skeleton exceeds the 10000 bone viewing limit"; goto fail; }
+            ufbx_vec3 p = pv_joint_position(node);
+            for (int j = 0; j < 3; j++) {
+                if (!isfinite(p.v[j])) { failure = "Skeleton contains invalid joint coordinates"; goto fail; }
+                if (p.v[j] < minv[j]) minv[j] = p.v[j];
+                if (p.v[j] > maxv[j]) maxv[j] = p.v[j];
+            }
+            if (pv_cancelled(cancelled)) { failure = "Cancelled"; goto fail; }
+        }
+    }
+    if (!triangles && !bone_count) { failure = "This file has no visible polygon mesh or skeleton to preview"; goto fail; }
     if (part_count > UINT32_MAX || src->materials.count >= UINT32_MAX) goto fail;
     dst = (pv_scene*)calloc(1, sizeof(pv_scene));
     if (!dst) goto fail;
@@ -215,6 +301,57 @@ PV_API pv_scene *pv_fbx_load(const wchar_t *path, const volatile int *cancelled,
         clip->info.name = pv_string(stack ? stack->name : (ufbx_string){"Animation", 9});
         if (!clip->info.name) goto fail;
         clip->info.begin = begin; clip->info.end = end; clip->anim = anim;
+    }
+    double center[3], extent[3];
+    for (int j = 0; j < 3; j++) { center[j] = minv[j] * 0.5 + maxv[j] * 0.5; extent[j] = maxv[j] * 0.5 - minv[j] * 0.5; }
+    double radius = hypot(hypot(extent[0],extent[1]),extent[2]);
+    if (!isfinite(radius)) { failure = "Model bounds are too large"; goto fail; }
+    if (radius <= 0.0) radius = 1.0;
+    memcpy(dst->center, center, sizeof(center)); dst->radius = radius;
+    dst->info.bottom = (float)((minv[1] - center[1]) / radius);
+    if (bone_count) {
+        double nearest = 1e300;
+        for (size_t ni = 0; ni < src->nodes.count; ni++) {
+            ufbx_node *node = src->nodes.data[ni];
+            if (!node->bone) continue;
+            ufbx_vec3 p = pv_joint_position(node);
+            double distance = hypot(hypot(p.x-center[0], p.y-center[1]), p.z-center[2]);
+            if (distance < nearest) { nearest = distance; dst->bone_anchor = node->typed_id; }
+        }
+        ufbx_vec3 focus = pv_joint_position(src->nodes.data[dst->bone_anchor]);
+        for (int j = 0; j < 3; j++) {
+            dst->center[j] = focus.v[j];
+            extent[j] = fmax(fabs(maxv[j]-focus.v[j]), fabs(minv[j]-focus.v[j]));
+        }
+        dst->radius = hypot(hypot(extent[0], extent[1]), extent[2]);
+        if (!isfinite(dst->radius)) { failure = "Skeleton bounds are too large"; goto fail; }
+        if (dst->radius <= 0.0) dst->radius = 1.0;
+        dst->info.bottom = (float)((minv[1]-focus.y) / dst->radius);
+        dst->bone_count = (uint32_t)bone_count;
+        dst->info.vertices = dst->bone_count * PV_BONE_VERTICES;
+        dst->info.parts = dst->info.materials = 1;
+        dst->info.bottom -= 0.005f;
+        dst->vertices = (pv_vertex*)malloc((size_t)dst->info.vertices * sizeof(pv_vertex));
+        dst->parts = (pv_part*)calloc(1, sizeof(pv_part));
+        dst->materials = (pv_material*)calloc(1, sizeof(pv_material));
+        dst->bones = (pv_bone_map*)calloc(bone_count, sizeof(pv_bone_map));
+        if (!dst->vertices || !dst->parts || !dst->materials || !dst->bones) goto fail;
+        dst->parts[0].count = dst->info.vertices;
+        dst->materials[0].color[0] = 0.42f; dst->materials[0].color[1] = 0.74f;
+        dst->materials[0].color[2] = dst->materials[0].color[3] = 1.0f; dst->materials[0].texture = -1;
+        uint32_t bi = 0;
+        for (size_t ni = 0; ni < src->nodes.count; ni++) {
+            ufbx_node *node = src->nodes.data[ni];
+            if (!node->bone) continue;
+            ufbx_node *parent = node->parent;
+            while (parent && !parent->bone) parent = parent->parent;
+            ufbx_vec3 end = pv_joint_position(node), start = parent ? pv_joint_position(parent) : end;
+            double length = hypot(hypot(end.x-start.x, end.y-start.y), end.z-start.z);
+            dst->bones[bi++] = (pv_bone_map){node->typed_id, parent ? parent->typed_id : UFBX_NO_INDEX, length < dst->radius*1e-5};
+            if (pv_cancelled(cancelled)) { failure = "Cancelled"; goto fail; }
+        }
+        if (!pv_skeleton_pose(dst, dst->vertices, src)) { failure = "Skeleton contains invalid joint coordinates"; goto fail; }
+        goto finished_geometry;
     }
     dst->info.materials = (uint32_t)src->materials.count + 1;
     dst->info.meshes = (uint32_t)mesh_count;
@@ -260,13 +397,6 @@ PV_API pv_scene *pv_fbx_load(const wchar_t *path, const volatile int *cancelled,
         }
         m->texture = (int32_t)ti;
     }
-    double center[3], extent[3];
-    for (int j = 0; j < 3; j++) { center[j] = minv[j] * 0.5 + maxv[j] * 0.5; extent[j] = maxv[j] * 0.5 - minv[j] * 0.5; }
-    double radius = hypot(hypot(extent[0],extent[1]),extent[2]);
-    if (!isfinite(radius)) { failure = "Model bounds are too large"; goto fail; }
-    if (radius <= 0.0) radius = 1.0;
-    memcpy(dst->center, center, sizeof(center)); dst->radius = radius;
-    dst->info.bottom = (float)((minv[1] - center[1]) / radius);
     uint32_t mesh_index = 0;
     for (size_t ni = 0; ni < src->nodes.count; ni++) {
         ufbx_node *node = src->nodes.data[ni];
@@ -311,6 +441,7 @@ PV_API pv_scene *pv_fbx_load(const wchar_t *path, const volatile int *cancelled,
         }
         if (mapping) mapping->count = dst->info.vertices - mapping->first;
     }
+finished_geometry:
     // Static files release ufbx immediately. Animated files retain one source
     // scene and reuse two vertex buffers, without baking every animation frame.
     if (dst->animation_count) { dst->source = src; src = NULL; }
@@ -329,6 +460,7 @@ PV_API const pv_vertex *pv_fbx_vertices(const pv_scene *scene) { return scene ? 
 PV_API const pv_part *pv_fbx_parts(const pv_scene *scene) { return scene ? scene->parts : NULL; }
 PV_API const pv_material *pv_fbx_materials(const pv_scene *scene) { return scene ? scene->materials : NULL; }
 PV_API uint32_t pv_fbx_animation_count(const pv_scene *scene) { return scene ? scene->animation_count : 0; }
+PV_API uint32_t pv_fbx_bone_count(const pv_scene *scene) { return scene ? scene->bone_count : 0; }
 PV_API int pv_fbx_animation_info(const pv_scene *scene, uint32_t index, pv_animation_info *info) {
     if (!scene || !info || index >= scene->animation_count) return 0;
     *info = scene->animations[index].info; return 1;
@@ -356,7 +488,7 @@ PV_API const pv_vertex *pv_fbx_evaluate(pv_scene *scene, int32_t animation, doub
         if (!evaluated) { pv_error(error, error_size, eval_error.description.data); return NULL; }
         pose = evaluated;
     }
-    int valid = 1;
+    int valid = !scene->bone_count || pv_skeleton_pose(scene, vertices, pose);
     for (uint32_t mi = 0; valid && mi < scene->info.meshes; mi++) {
         pv_mesh_map *mapping = &scene->meshes[mi];
         if (mapping->node >= pose->nodes.count) { valid = 0; break; }
@@ -371,7 +503,7 @@ PV_API const pv_vertex *pv_fbx_evaluate(pv_scene *scene, int32_t animation, doub
         }
     }
     ufbx_free_scene(evaluated);
-    if (!valid) { pv_error(error, error_size, "Invalid animated mesh coordinates"); return NULL; }
+    if (!valid) { pv_error(error, error_size, "Invalid animated model coordinates"); return NULL; }
     return vertices;
 }
 PV_API int pv_fbx_texture_info(const pv_scene *scene, uint32_t index, pv_texture *texture) {
